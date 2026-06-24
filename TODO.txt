@@ -1,0 +1,339 @@
+================================================================================
+  AI TRADING AGENT — HYPERLIQUID + ELLIOTT WAVE
+  Goal: Autonomous agent that identifies Elliott Wave setups and executes trades
+        on Hyperliquid using a connected crypto wallet.
+================================================================================
+
+--------------------------------------------------------------------------------
+PHASE 0 — FOUNDATIONS & RESEARCH
+--------------------------------------------------------------------------------
+[ ] Study Hyperliquid API docs (REST + WebSocket)
+    - Endpoint: https://api.hyperliquid.xyz
+    - Auth: wallet signing (EIP-712 / ethers.js or web3.py)
+    - Key actions: place_order, cancel_order, get_open_positions, get_fills
+
+[ ] Understand Hyperliquid account model
+    - Vault vs. individual account
+    - Cross margin vs. isolated margin
+    - Leverage limits per asset
+
+[ ] Study Elliott Wave Theory (EWT) rules + guidelines
+    - Impulsive waves: 5-wave structure (1-2-3-4-5)
+    - Corrective waves: 3-wave structure (A-B-C)
+    - Fibonacci ratios: 0.382, 0.5, 0.618, 0.786, 1.618, 2.618
+    - Wave counting rules (wave 3 never shortest, wave 4 never overlaps wave 1)
+
+[ ] Define trading rules / signal criteria
+    - Which waves to trade (e.g., wave 3, wave 5, wave C)
+    - Entry triggers (breakout of wave 1 high for wave 3, etc.)
+    - Stop-loss placement (below wave 1 start for wave 3 trades)
+    - Take-profit targets (1.618x, 2.618x extensions)
+    - Position sizing rules (% of portfolio per trade)
+
+--------------------------------------------------------------------------------
+PHASE 1 — WALLET INTEGRATION
+--------------------------------------------------------------------------------
+[ ] Choose wallet connection method:
+    OPTION A — Private key (server-side, simplest for automation)
+      - Store private key in .env / secrets vault (never commit)
+      - Use ethers.js (Node) or eth_account (Python) to sign transactions
+    OPTION B — MetaMask via browser extension
+      - Use window.ethereum + ethers.js in a web app
+      - Requires browser to be running; harder to automate
+    OPTION C — Hardware wallet (Ledger/Trezor) via HID bridge
+      - Most secure but adds complexity to signing pipeline
+    >> RECOMMENDED FOR AUTOMATION: Option A with secret vault
+
+[ ] Set up wallet signing for Hyperliquid
+    - Generate/store wallet keypair securely
+    - Implement EIP-712 signing helper
+    - Test deposit / withdrawal on Hyperliquid testnet first
+
+[ ] Secrets management
+    - Use python-dotenv or AWS Secrets Manager / HashiCorp Vault
+    - Never log private keys or signed payloads
+
+--------------------------------------------------------------------------------
+PHASE 2 — MARKET DATA PIPELINE
+--------------------------------------------------------------------------------
+[ ] Connect to Hyperliquid market data
+    - WebSocket subscription: allMids, l2Book, trades, candles
+    - REST polling fallback if WebSocket drops
+
+[ ] Build OHLCV candle store
+    - Support multiple timeframes: 1m, 5m, 15m, 1h, 4h, 1d
+    - Use pandas DataFrame or TimescaleDB for persistence
+    - Back-fill historical data on startup
+
+[ ] Integrate external data sources (optional but valuable)
+    - TradingView data (via unofficial scraping or paid API)
+    - CoinGecko / CryptoCompare for supplemental OHLCV
+    - Funding rate feed from Hyperliquid (sentiment signal)
+
+[ ] Calculate technical indicators used in EWT context
+    - RSI (divergence confirmation)
+    - MACD (momentum confirmation)
+    - Volume profile (wave validity)
+    - ATR (volatility for stop sizing)
+
+--------------------------------------------------------------------------------
+PHASE 3 — ELLIOTT WAVE DETECTION ENGINE
+--------------------------------------------------------------------------------
+[ ] Build wave pivot detector
+    - ZigZag algorithm to identify swing highs/lows
+    - Configurable sensitivity (min % move to qualify as swing)
+    - Multi-timeframe pivot detection
+
+[ ] Implement wave counting algorithm
+    - Label candidate waves using pivot sequence
+    - Enforce EWT rules programmatically:
+        * Wave 2 never retraces > 100% of wave 1
+        * Wave 3 never shortest among 1, 3, 5
+        * Wave 4 never enters wave 1 price territory
+    - Score each count by Fibonacci ratio alignment
+
+[ ] Fibonacci confluence detection
+    - Calculate retracement levels off each wave
+    - Detect price confluence zones (multiple fib levels overlap)
+    - Rate confluence strength (1–3 levels = weak, 4+ = strong)
+
+[ ] Wave pattern classifier
+    - Detect impulse waves (motive): [1-2-3-4-5]
+    - Detect corrective waves: [A-B-C], [W-X-Y], triangle, flat, zigzag
+    - Assign confidence score to each detected pattern
+
+[ ] Multi-timeframe wave analysis
+    - Higher timeframe sets the bias (e.g., 4h in wave 3 up)
+    - Lower timeframe finds entry wave (e.g., 15m wave 2 pullback)
+    - Only trade when both timeframes align
+
+[ ] AI/ML enhancement (optional but powerful)
+    - Train LSTM or Transformer model on labeled historical EWT charts
+    - Use model to score wave count probability
+    - Combine model output with rule-based engine (ensemble)
+
+--------------------------------------------------------------------------------
+PHASE 4 — SIGNAL GENERATION & TRADE LOGIC
+--------------------------------------------------------------------------------
+[ ] Define entry signals per wave type
+    - Wave 3 long: end of wave 2 pullback to 0.5–0.618 fib, RSI oversold
+    - Wave 5 long: end of wave 4 to 0.382–0.5 fib, volume declining
+    - Wave C short: after failed 5th wave extension, RSI divergence
+
+[ ] Define risk management rules
+    - Max risk per trade: 1–2% of account
+    - Max open positions: 3–5 concurrent
+    - Max daily drawdown halt: 5% (pause all trading for the day)
+    - Leverage cap per trade (e.g., 5x–10x max)
+
+[ ] Implement order logic
+    - Limit orders at confluence zones (preferred, better fills)
+    - Market orders only on strong breakout signals
+    - OCO (One-Cancels-Other): stop-loss + take-profit together
+    - Partial take-profit at wave targets (e.g., 50% at 1.618x, rest at 2.618x)
+
+[ ] Build trade state machine
+    States: WATCHING → SETUP_DETECTED → ORDER_PLACED → IN_TRADE → CLOSED
+    - Track each open trade's wave context
+    - Cancel order if wave count is invalidated before fill
+
+--------------------------------------------------------------------------------
+PHASE 5 — AGENT ORCHESTRATION (THE AI BRAIN)
+--------------------------------------------------------------------------------
+[ ] Choose agent framework
+    OPTION A — LangChain / LangGraph
+      - Tools: get_market_data, analyze_waves, place_order, check_position
+      - Memory: trade journal, open positions, wave count state
+      - Loop: analyze → decide → act → monitor → repeat
+    OPTION B — Custom loop (simpler, full control)
+      - Scheduler (APScheduler or cron) runs analysis every N minutes
+      - No external LLM API needed for core logic
+    OPTION C — Claude API as reasoning layer
+      - Feed wave analysis summary + market context to Claude
+      - Claude decides: trade or wait, which asset, entry/SL/TP
+      - Claude explains reasoning (audit trail)
+    >> RECOMMENDED: Option C for higher intelligence + explainability
+
+[ ] Define agent tools (if using LLM agent)
+    - get_candles(symbol, timeframe, limit)
+    - get_wave_analysis(symbol, timeframe)
+    - get_open_positions()
+    - get_account_balance()
+    - place_trade(symbol, side, size, entry_price, sl, tp)
+    - cancel_trade(order_id)
+    - get_trade_history(limit)
+
+[ ] Agent reasoning prompt (Claude system prompt)
+    - Define Elliott Wave rules as system context
+    - Instruct: only trade when confident pattern identified
+    - Instruct: always specify stop-loss before entering
+    - Include risk management constraints
+
+[ ] Monitoring & alerting
+    - Telegram bot or Discord webhook for trade notifications
+    - Alert on: new setup detected, order placed, SL hit, TP hit
+    - Daily P&L summary report
+
+--------------------------------------------------------------------------------
+PHASE 6 — BACKTESTING & VALIDATION
+--------------------------------------------------------------------------------
+[ ] Build backtesting framework
+    - Replay historical OHLCV through wave engine
+    - Simulate order execution with slippage model
+    - Track: win rate, avg R:R, max drawdown, Sharpe ratio
+
+[ ] Collect labeled EWT dataset
+    - Manually label 500+ historical wave setups
+    - Include outcome (hit TP / hit SL / neither)
+    - Use for both rule validation and ML training
+
+[ ] Walk-forward optimization
+    - Split data: 70% train, 30% out-of-sample test
+    - Optimize parameters (fib levels, pivot sensitivity) on train set
+    - Validate on unseen data to detect overfitting
+
+[ ] Paper trading on Hyperliquid testnet
+    - Run full agent on testnet before live funds
+    - Target: 2+ weeks of consistent positive results
+
+--------------------------------------------------------------------------------
+PHASE 7 — DEPLOYMENT & INFRASTRUCTURE
+--------------------------------------------------------------------------------
+[ ] Choose deployment environment
+    OPTION A — VPS / Cloud VM (AWS EC2, DigitalOcean, Hetzner)
+      - Full control, always-on, ~$5–20/month
+      - Run as systemd service or Docker container
+    OPTION B — Docker + Docker Compose
+      - Services: bot, redis (state), postgres (history), grafana (monitoring)
+      - Easy to restart and scale
+    OPTION C — Kubernetes (overkill for v1, but future-proof)
+    >> RECOMMENDED FOR V1: Option A or B
+
+[ ] Set up CI/CD pipeline
+    - GitHub Actions: lint, test, deploy on push to main
+    - Secrets injected via GitHub Secrets or AWS SSM
+
+[ ] Monitoring stack
+    - Prometheus + Grafana for metrics (P&L, trade count, latency)
+    - Loki for log aggregation
+    - PagerDuty / Uptime Robot for uptime alerts
+
+[ ] Security hardening
+    - Wallet private key in HSM or encrypted vault (never plaintext on disk)
+    - Rate limit API calls to avoid bans
+    - IP allowlist on cloud VM
+    - Audit log of all signed transactions
+
+--------------------------------------------------------------------------------
+PHASE 8 — LIVE TRADING (GO-LIVE CHECKLIST)
+--------------------------------------------------------------------------------
+[ ] Fund account with small initial capital (e.g., $500–$1,000)
+[ ] Enable kill switch (manual override to flatten all positions)
+[ ] Set hard daily loss limit ($$ amount, not just %)
+[ ] Monitor first 10 live trades manually before going fully autonomous
+[ ] Review agent reasoning logs daily for first month
+[ ] Set calendar reminder to re-evaluate strategy every 30 days
+
+--------------------------------------------------------------------------------
+TECH STACK OPTIONS
+--------------------------------------------------------------------------------
+
+OPTION A — Python (Recommended for V1)
+  Language : Python 3.11+
+  Web3     : eth-account, web3.py
+  Data     : pandas, numpy, ta-lib
+  Agent    : Claude API (Anthropic SDK) or LangChain
+  DB       : PostgreSQL + TimescaleDB (time-series)
+  Cache    : Redis
+  Scheduler: APScheduler
+  Deploy   : Docker on VPS
+
+OPTION B — TypeScript/Node.js
+  Language : TypeScript (Node 20+)
+  Web3     : ethers.js v6
+  Data     : danfojs, technicalindicators
+  Agent    : LangChain.js + Claude or OpenAI
+  DB       : PostgreSQL (Prisma ORM)
+  Deploy   : Docker on VPS
+
+OPTION C — Hybrid (Python bot + React dashboard)
+  Bot      : Python (as above)
+  Dashboard: React + TradingView Lightweight Charts
+  API      : FastAPI (connects bot to dashboard)
+  Auth     : JWT for dashboard access
+  Deploy   : Docker Compose (bot + api + frontend)
+  >> Best for long-term: gives you a live visual UI
+
+--------------------------------------------------------------------------------
+RECOMMENDED ARCHITECTURE (V1 SIMPLE → V2 FULL)
+--------------------------------------------------------------------------------
+
+V1 — MVP (get it running fast):
+  ┌─────────────────────────────────────────────────────┐
+  │  Python Bot                                          │
+  │  ├── Hyperliquid WebSocket (market data)             │
+  │  ├── Wave Engine (rule-based ZigZag + Fib)           │
+  │  ├── Claude API (reasoning + decision)               │
+  │  ├── ethers.js / eth-account (wallet signing)        │
+  │  ├── Hyperliquid REST (order execution)              │
+  │  └── Telegram Bot (notifications)                    │
+  └─────────────────────────────────────────────────────┘
+
+V2 — Full System:
+  ┌─────────────────────────────────────────────────────┐
+  │  React Dashboard  ←→  FastAPI  ←→  Python Bot        │
+  │                                   ├── Wave Engine    │
+  │                                   ├── ML Classifier  │
+  │                                   ├── Claude Agent   │
+  │                                   ├── Risk Manager   │
+  │                                   └── Order Manager  │
+  │                   ←→  PostgreSQL + Redis             │
+  │                   ←→  Grafana (metrics)              │
+  └─────────────────────────────────────────────────────┘
+
+--------------------------------------------------------------------------------
+ESTIMATED TIMELINE
+--------------------------------------------------------------------------------
+Phase 0 (Research)          : 1–2 weeks
+Phase 1 (Wallet)            : 3–5 days
+Phase 2 (Market Data)       : 1 week
+Phase 3 (Wave Engine)       : 2–4 weeks  ← hardest part
+Phase 4 (Signal Logic)      : 1 week
+Phase 5 (Agent)             : 1 week
+Phase 6 (Backtesting)       : 2 weeks
+Phase 7 (Deploy)            : 3–5 days
+Phase 8 (Live)              : ongoing
+Total to MVP                : ~8–12 weeks
+
+--------------------------------------------------------------------------------
+RISKS & MITIGATIONS
+--------------------------------------------------------------------------------
+Risk: Elliott Wave is subjective → same chart, different counts
+  Mitigation: Use rule-based engine + ML classifier ensemble, require 2+
+              timeframe agreement before trading
+
+Risk: API / WebSocket downtime mid-trade
+  Mitigation: Heartbeat monitor, auto-reconnect, position reconciliation on startup
+
+Risk: Private key compromise
+  Mitigation: Hardware wallet or HSM, minimal funds on hot wallet, daily withdraw
+              excess profits to cold storage
+
+Risk: Black swan / flash crash blows stop
+  Mitigation: Hard max loss per day, circuit breaker halts trading at 5% daily loss
+
+Risk: Overfitting in backtests
+  Mitigation: Walk-forward testing, out-of-sample validation, paper trade 2+ weeks
+
+--------------------------------------------------------------------------------
+NEXT IMMEDIATE STEPS (START HERE)
+--------------------------------------------------------------------------------
+1. Create Python project structure (src/, tests/, config/, data/)
+2. Set up Hyperliquid testnet account
+3. Write Hyperliquid API client (REST + WebSocket)
+4. Implement ZigZag pivot detector on OHLCV data
+5. Test wave engine on historical BTC/ETH data visually
+6. Wire up Claude API as reasoning layer
+7. End-to-end test: data → wave detection → Claude decision → testnet order
+
+================================================================================
