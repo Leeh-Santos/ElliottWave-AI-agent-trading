@@ -1,0 +1,24 @@
+
+cd ~/Ben-tradingbot
+.venv/bin/python long_trade.py
+
+That's it — everything is already installed in the .venv. The script will then prompt you step by step:
+
+1. Network — press Enter for mainnet, or type t for testnet (recommended for your first try)
+2. Private key — paste it; the input is hidden, so you won't see it as you type. Just paste and press Enter
+3. Main account address — press Enter unless you're using an API wallet key
+4. Pair — e.g. BTC, ETH, SOL
+5. Leverage, margin mode, size, slippage — each has a default shown in [brackets]; press Enter to accept it
+6. Review the summary, type yes to execute
+
+Nothing is sent to the exchange until you ttion — you can Ctrl+C or answer no at any point to abort safaly
+
+Nothing is sent to the exchange until you type yes at the final confirmation — you can Ctrl+C or answer no at any point to abort safely.
+
+If you ever recreate the environment from scratch, the dependency is in requirements.txt (pip install -r requirements.txt).
+
+The typical flow:
+
+1. Have USDC on Arbitrum in your MetaMask wallet (buy it on an exchange and withdraw to Arbitrum, or bridge it there). You'll also want a tiny bit of ETH on Arbitrum for gas.
+2. Deposit into Hyperliquid: go to app.hyperliquid.xyz, connect MetaMask, and click Deposit — this moves USDC from Arbitrum into your Hyperliquid trading account (minimum deposit is 5 USDC). It arrives in under a minute.
+3. Once deposited, the money lives on Hyperliquid under your wallet address. That's the balance my script shows as "Account value / Free margin" when it starts — if it says $0.00, you haven't deposited yet and any order will be rejected.
